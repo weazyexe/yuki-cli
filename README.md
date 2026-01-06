@@ -1,151 +1,132 @@
-# yt2anki
+# yuki
 
-CLI-утилита для создания Anki-колод из YouTube видео. Извлекает лексику уровня A2-B2 из транскрипции видео с помощью LLM.
+CLI-инструмент для создания Anki-карточек из YouTube видео или файлов субтитров.
 
-## Требования
+## Возможности
 
-### Внешние зависимости
+- Извлечение словаря из YouTube видео (скачивание + транскрибирование)
+- Поддержка файлов субтитров (SRT, VTT) и текстовых файлов (TXT)
+- Извлечение слов по уровням CEFR (A2, B1, B2)
+- Интерактивный выбор слов для колоды
+- Кеширование аудио и транскриптов
+- Генерация готовых .apkg файлов для Anki
 
-1. **yt-dlp** — скачивание аудио с YouTube
+## Установка
+
+### Зависимости
+
+Для работы с YouTube видео требуются:
+
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — скачивание аудио
+- [mlx_whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper) — транскрибирование (Apple Silicon)
 
 ```bash
 # macOS
 brew install yt-dlp
-
-# Linux
-pip install yt-dlp
-
-# Windows
-winget install yt-dlp
-```
-
-2. **mlx_whisper** — транскрипция аудио (Whisper для Apple Silicon)
-
-```bash
 pip install mlx-whisper
 ```
 
-> Требуется Mac с Apple Silicon (M1/M2/M3/M4)
-
-3. **ffmpeg** — требуется для yt-dlp и whisper
+### Сборка
 
 ```bash
-# macOS
-brew install ffmpeg
-
-# Linux (Ubuntu/Debian)
-sudo apt install ffmpeg
-
-# Windows
-winget install ffmpeg
-```
-
-### LLM API
-
-Нужен доступ к OpenAI-compatible API:
-
-- **OpenAI API** — установите `OPENAI_API_KEY`
-- **Ollama** (локально) — запустите `ollama serve` и используйте `--api-url http://localhost:11434/v1`
-- **Любой OpenAI-compatible сервер** — укажите URL через `--api-url`
-
-## Установка
-
-```bash
-# Клонирование
-git clone https://github.com/weazyexe/yt2anki.git
-cd yt2anki
-
-# Сборка
-go build -o yt2anki .
-
-# Опционально: установка в PATH
-sudo mv yt2anki /usr/local/bin/
+git clone https://github.com/weazyexe/yuki-cli.git
+cd yuki-cli
+go build -o yuki .
 ```
 
 ## Использование
 
-```bash
-yt2anki [flags] <youtube-url>
-
-Flags:
-  -n, --count int       Количество слов (default: 20)
-  -o, --output string   Выходной файл (default: deck.apkg)
-  -l, --level string    Уровень: A2, B1, B2 (default: B1)
-      --api-url string  OpenAI-compatible API URL (default: http://localhost:11434/v1)
-      --api-key string  API ключ (или env: OPENAI_API_KEY)
-      --model string    Модель LLM (default: gpt-4o-mini)
-      --no-review       Пропустить интерактивный выбор слов
-      --no-cache        Не использовать кэш
-      --refresh         Перекачать и перетранскрибировать (игнорировать кэш)
-      --clear-cache     Очистить кэш и выйти
-```
-
-### Примеры
+### Из YouTube видео
 
 ```bash
-# Базовый запуск с OpenAI
-export OPENAI_API_KEY=sk-xxx
-yt2anki "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+# Базовое использование
+yuki https://www.youtube.com/watch?v=VIDEO_ID
 
-# 30 слов уровня B2
-yt2anki -n 30 -l B2 -o english_vocab.apkg "https://youtu.be/xxx"
-
-# С локальным Ollama
-yt2anki --api-url http://localhost:11434/v1 --model llama3 --api-key dummy "URL"
-
-# Перезапуск с тем же видео (использует кэш)
-yt2anki -n 10 -l A2 "https://youtu.be/xxx"
-
-# Очистка кэша
-yt2anki --clear-cache
+# С параметрами
+yuki -n 30 -l B2 -o vocabulary.apkg https://youtu.be/VIDEO_ID
 ```
 
-## Кэширование
+### Из файла субтитров
 
-Утилита кэширует скачанное аудио и транскрипты в `~/.cache/yt2anki/`. Это позволяет:
-- Быстро перезапускать с другими параметрами (уровень, количество слов)
-- Экономить время на повторной транскрипции (самая долгая операция)
+```bash
+# SRT файл
+yuki subtitles.srt
 
-Управление кэшем:
-- `--no-cache` — не использовать кэш для этого запуска
-- `--refresh` — перекачать и перетранскрибировать
-- `--clear-cache` — очистить весь кэш
+# VTT файл
+yuki captions.vtt
 
-## Структура карточек
-
-Каждое слово создаёт 2 карточки:
-
-**Forward (EN → RU):**
-```
-Front: Word
-Back:  Definition (RU)
-       /IPA/
-       Example (EN)
-       Example (RU)
+# Текстовый файл
+yuki transcript.txt
 ```
 
-**Reverse (RU → EN):**
+При использовании файлов зависимости yt-dlp и mlx_whisper не требуются.
+
+## Флаги
+
+| Флаг            | Короткий | По умолчанию       | Описание                            |
+| --------------- | -------- | ------------------ | ----------------------------------- |
+| `--count`       | `-n`     | 20                 | Количество слов для извлечения      |
+| `--output`      | `-o`     | deck.apkg          | Путь к выходному файлу              |
+| `--level`       | `-l`     | B1                 | Уровень языка: A2, B1, B2           |
+| `--api-url`     |          | localhost:11434/v1 | URL OpenAI-совместимого API         |
+| `--api-key`     |          |                    | API ключ (или env: OPENAI_API_KEY)  |
+| `--model`       |          | gpt-4o-mini        | Название LLM модели                 |
+| `--no-review`   |          | false              | Пропустить интерактивный выбор слов |
+| `--no-cache`    |          | false              | Отключить кеширование               |
+| `--refresh`     |          | false              | Игнорировать кеш, скачать заново    |
+| `--clear-cache` |          |                    | Очистить кеш и выйти                |
+
+## Примеры
+
+```bash
+# Извлечь 30 слов уровня B2, пропустить выбор
+yuki -n 30 -l B2 --no-review https://www.youtube.com/watch?v=abc123
+
+# Использовать OpenAI API
+yuki --api-url https://api.openai.com/v1 \
+        --api-key $OPENAI_API_KEY \
+        --model gpt-4o \
+        video.srt
+
+# Использовать локальный Ollama
+yuki --api-url http://localhost:11434/v1 \
+        --api-key ollama \
+        --model llama3.2 \
+        transcript.txt
 ```
-Front: Definition (RU)
-Back:  Word
-       /IPA/
-       Example (EN)
-       Example (RU)
+
+## Кеширование
+
+Кеш хранится в `~/.cache/yuki/` (или `$XDG_CACHE_HOME/yuki/`):
+
+- `audio/` — скачанные аудиофайлы
+- `transcripts/` — транскрипты
+
+```bash
+# Очистить кеш
+yuki --clear-cache
+
+# Игнорировать кеш для одного запуска
+yuki --refresh https://youtube.com/...
+
+# Отключить кеширование
+yuki --no-cache https://youtube.com/...
 ```
 
-## Импорт в Anki
+## Поддерживаемые форматы
 
-1. Откройте Anki
-2. File → Import
-3. Выберите сгенерированный `.apkg` файл
-4. Готово
+| Формат | Расширение | Описание             |
+| ------ | ---------- | -------------------- |
+| SubRip | .srt       | Стандартные субтитры |
+| WebVTT | .vtt       | Веб-субтитры         |
+| Text   | .txt       | Обычный текст        |
 
-## Troubleshooting
+## Тестирование
 
-**"yt-dlp not found"** — установите yt-dlp и убедитесь, что он доступен в PATH
+```bash
+go test ./...
+```
 
-**"mlx_whisper not found"** — установите mlx-whisper: `pip install mlx-whisper`
+## Лицензия
 
-**"API key required"** — установите переменную окружения `OPENAI_API_KEY` или используйте флаг `--api-key`
-
-**Долгая транскрипция** — whisper использует модель `medium`, для длинных видео это может занять время. Убедитесь, что у вас достаточно RAM (рекомендуется 8GB+)
+MIT

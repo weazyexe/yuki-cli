@@ -1,4 +1,4 @@
-module github.com/weazyexe/yt2anki
+module github.com/weazyexe/yuki-cli
 
 go 1.24.1
 

@@ -9,12 +9,12 @@ import (
 )
 
 const (
-	cacheDirName     = "yt2anki"
+	cacheDirName     = "yuki"
 	audioSubDir      = "audio"
 	transcriptSubDir = "transcripts"
 )
 
-// Cache manages the yt2anki cache directory
+// Cache manages the yuki cache directory
 type Cache struct {
 	baseDir string
 }

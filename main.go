@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/weazyexe/yt2anki/internal"
+	"github.com/weazyexe/yuki-cli/internal"
 )
 
 var (
@@ -25,7 +25,7 @@ var (
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "yt2anki [flags] <youtube-url|file>",
+		Use:   "yuki [flags] <youtube-url|file>",
 		Short: "Convert YouTube videos or subtitle files to Anki flashcard decks",
 		Long:  "CLI utility that extracts vocabulary from YouTube videos or subtitle/text files and creates Anki decks",
 		Args:  cobra.MaximumNArgs(1),
@@ -183,7 +183,7 @@ func processYouTube(url string) (string, error) {
 		audioPath = cache.AudioPath(videoID)
 	} else {
 		// Download audio
-		tempDir, err := os.MkdirTemp("", "yt2anki-*")
+		tempDir, err := os.MkdirTemp("", "yuki-*")
 		if err != nil {
 			return "", fmt.Errorf("failed to create temp directory: %w", err)
 		}
@@ -205,7 +205,7 @@ func processYouTube(url string) (string, error) {
 	}
 
 	// Transcribe
-	tempDir, err := os.MkdirTemp("", "yt2anki-transcribe-*")
+	tempDir, err := os.MkdirTemp("", "yuki-transcribe-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp directory: %w", err)
 	}

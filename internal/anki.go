@@ -226,7 +226,7 @@ func createModels() map[string]interface{} {
 	return map[string]interface{}{
 		mid: map[string]interface{}{
 			"id":    modelID,
-			"name":  "yt2anki Vocabulary",
+			"name":  "yuki Vocabulary",
 			"type":  0,
 			"mod":   time.Now().Unix(),
 			"usn":   -1,
@@ -259,7 +259,7 @@ func createModels() map[string]interface{} {
 				{"name": "ExampleEN", "ord": 3, "sticky": false, "rtl": false, "font": "Arial", "size": 20, "media": []string{}},
 				{"name": "ExampleRU", "ord": 4, "sticky": false, "rtl": false, "font": "Arial", "size": 20, "media": []string{}},
 			},
-			"css":  css,
+			"css": css,
 			"latexPre": `\documentclass[12pt]{article}
 \special{papersize=3in,5in}
 \usepackage[utf8]{inputenc}
@@ -279,34 +279,34 @@ func createDecks(deckName string) map[string]interface{} {
 
 	return map[string]interface{}{
 		"1": map[string]interface{}{
-			"id":             1,
-			"name":           "Default",
-			"mod":            time.Now().Unix(),
-			"usn":            -1,
-			"lrnToday":       []int{0, 0},
-			"revToday":       []int{0, 0},
-			"newToday":       []int{0, 0},
-			"timeToday":      []int{0, 0},
-			"collapsed":      false,
+			"id":               1,
+			"name":             "Default",
+			"mod":              time.Now().Unix(),
+			"usn":              -1,
+			"lrnToday":         []int{0, 0},
+			"revToday":         []int{0, 0},
+			"newToday":         []int{0, 0},
+			"timeToday":        []int{0, 0},
+			"collapsed":        false,
 			"browserCollapsed": false,
-			"desc":           "",
-			"dyn":            0,
-			"conf":           1,
+			"desc":             "",
+			"dyn":              0,
+			"conf":             1,
 		},
 		did: map[string]interface{}{
-			"id":             deckID,
-			"name":           deckName,
-			"mod":            time.Now().Unix(),
-			"usn":            -1,
-			"lrnToday":       []int{0, 0},
-			"revToday":       []int{0, 0},
-			"newToday":       []int{0, 0},
-			"timeToday":      []int{0, 0},
-			"collapsed":      false,
+			"id":               deckID,
+			"name":             deckName,
+			"mod":              time.Now().Unix(),
+			"usn":              -1,
+			"lrnToday":         []int{0, 0},
+			"revToday":         []int{0, 0},
+			"newToday":         []int{0, 0},
+			"timeToday":        []int{0, 0},
+			"collapsed":        false,
 			"browserCollapsed": false,
-			"desc":           "Vocabulary deck created by yt2anki",
-			"dyn":            0,
-			"conf":           1,
+			"desc":             "Vocabulary deck created by yuki",
+			"dyn":              0,
+			"conf":             1,
 		},
 	}
 }
@@ -340,30 +340,30 @@ func createDconf() map[string]interface{} {
 			"timer":    0,
 			"replayq":  true,
 			"new": map[string]interface{}{
-				"bury":      true,
-				"delays":    []float64{1, 10},
+				"bury":          true,
+				"delays":        []float64{1, 10},
 				"initialFactor": 2500,
-				"ints":      []int{1, 4, 7},
-				"order":     1,
-				"perDay":    20,
+				"ints":          []int{1, 4, 7},
+				"order":         1,
+				"perDay":        20,
 			},
 			"rev": map[string]interface{}{
-				"bury":     true,
-				"ease4":    1.3,
-				"fuzz":     0.05,
-				"ivlFct":   1,
-				"maxIvl":   36500,
-				"perDay":   200,
+				"bury":       true,
+				"ease4":      1.3,
+				"fuzz":       0.05,
+				"ivlFct":     1,
+				"maxIvl":     36500,
+				"perDay":     200,
 				"hardFactor": 1.2,
 			},
 			"lapse": map[string]interface{}{
-				"delays":    []float64{10},
+				"delays":      []float64{10},
 				"leechAction": 0,
-				"leechFails": 8,
-				"minInt":    1,
-				"mult":      0,
+				"leechFails":  8,
+				"minInt":      1,
+				"mult":        0,
 			},
-			"dyn":   false,
+			"dyn": false,
 		},
 	}
 }
@@ -374,7 +374,7 @@ func insertNotes(db *sql.DB, items []VocabularyItem) error {
 
 	for i, item := range items {
 		noteID := now*1000 + int64(i)
-		guid := fmt.Sprintf("yt2anki%d", noteID)
+		guid := fmt.Sprintf("yuki%d", noteID)
 
 		// Fields separated by \x1f (unit separator)
 		fields := fmt.Sprintf("%s\x1f%s\x1f%s\x1f%s\x1f%s",
