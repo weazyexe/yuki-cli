@@ -10,6 +10,8 @@ import (
 func DownloadAudio(url, outputDir string) (string, error) {
 	outputTemplate := filepath.Join(outputDir, "audio.%(ext)s")
 
+	spinner := NewSpinner("Downloading")
+
 	cmd := exec.Command("yt-dlp",
 		"-x",
 		"--audio-format", "mp3",
@@ -19,8 +21,11 @@ func DownloadAudio(url, outputDir string) (string, error) {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		spinner.StopWithError()
 		return "", fmt.Errorf("yt-dlp error: %w\nOutput: %s", err, string(output))
 	}
+
+	spinner.Stop()
 
 	audioPath := filepath.Join(outputDir, "audio.mp3")
 	return audioPath, nil

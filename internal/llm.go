@@ -57,6 +57,8 @@ func (c *LLMClient) ExtractVocabulary(transcript string, count int, level string
 Транскрипт:
 %s`, count, level, level, transcript)
 
+	spinner := NewSpinner("Extracting vocabulary")
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
@@ -72,12 +74,16 @@ func (c *LLMClient) ExtractVocabulary(transcript string, count int, level string
 	})
 
 	if err != nil {
+		spinner.StopWithError()
 		return nil, fmt.Errorf("LLM request failed: %w", err)
 	}
 
 	if len(resp.Choices) == 0 {
+		spinner.StopWithError()
 		return nil, fmt.Errorf("no response from LLM")
 	}
+
+	spinner.Stop()
 
 	content := resp.Choices[0].Message.Content
 	content = cleanJSONResponse(content)

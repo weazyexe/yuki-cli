@@ -10,6 +10,8 @@ import (
 
 // Transcribe converts audio file to text using mlx_whisper
 func Transcribe(audioPath, outputDir string) (string, error) {
+	spinner := NewSpinner("Transcribing")
+
 	cmd := exec.Command("mlx_whisper",
 		audioPath,
 		"--model", "mlx-community/whisper-medium-mlx",
@@ -19,8 +21,11 @@ func Transcribe(audioPath, outputDir string) (string, error) {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		spinner.StopWithError()
 		return "", fmt.Errorf("whisper error: %w\nOutput: %s", err, string(output))
 	}
+
+	spinner.Stop()
 
 	// Whisper creates output file with same name as input but .txt extension
 	baseName := filepath.Base(audioPath)

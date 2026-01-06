@@ -5,19 +5,23 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/weazyexe/yt2anki/internal"
 )
 
 var (
-	count    int
-	output   string
-	level    string
-	apiURL   string
-	apiKey   string
-	model    string
-	noReview bool
+	count        int
+	output       string
+	level        string
+	apiURL       string
+	apiKey       string
+	model        string
+	noReview     bool
+	noCache      bool
+	clearCache   bool
+	refreshCache bool
 )
 
 func main() {
@@ -25,7 +29,7 @@ func main() {
 		Use:   "yt2anki [flags] <youtube-url>",
 		Short: "Convert YouTube videos to Anki flashcard decks",
 		Long:  "CLI utility that extracts vocabulary from YouTube videos and creates Anki decks",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE:  run,
 	}
 
@@ -36,6 +40,9 @@ func main() {
 	rootCmd.Flags().StringVar(&apiKey, "api-key", "", "API key (or env: OPENAI_API_KEY)")
 	rootCmd.Flags().StringVar(&model, "model", "gpt-4o-mini", "LLM model name")
 	rootCmd.Flags().BoolVar(&noReview, "no-review", false, "Skip interactive review, add all words")
+	rootCmd.Flags().BoolVar(&noCache, "no-cache", false, "Disable cache for this run")
+	rootCmd.Flags().BoolVar(&clearCache, "clear-cache", false, "Clear cache and exit")
+	rootCmd.Flags().BoolVar(&refreshCache, "refresh", false, "Re-download and re-transcribe (ignore cache)")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -43,11 +50,37 @@ func main() {
 }
 
 func run(cmd *cobra.Command, args []string) error {
+	// Handle --clear-cache
+	if clearCache {
+		cache, err := internal.NewCache()
+		if err != nil {
+			return fmt.Errorf("failed to initialize cache: %w", err)
+		}
+		if err := cache.Clear(); err != nil {
+			return fmt.Errorf("failed to clear cache: %w", err)
+		}
+		fmt.Println("Cache cleared successfully")
+		return nil
+	}
+
+	// Require URL for normal operation
+	if len(args) == 0 {
+		return fmt.Errorf("YouTube URL required")
+	}
 	url := args[0]
+
+	// Start timing
+	startTime := time.Now()
 
 	// Validate YouTube URL
 	if !isValidYouTubeURL(url) {
 		return fmt.Errorf("invalid YouTube URL: %s", url)
+	}
+
+	// Extract video ID for caching
+	videoID, err := internal.ExtractVideoID(url)
+	if err != nil {
+		return fmt.Errorf("failed to extract video ID: %w", err)
 	}
 
 	// Validate level
@@ -69,34 +102,88 @@ func run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Create temp directory for intermediate files
-	tempDir, err := os.MkdirTemp("", "yt2anki-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp directory: %w", err)
+	// Initialize cache (unless disabled)
+	var cache *internal.Cache
+	useCache := !noCache
+	if useCache {
+		cache, err = internal.NewCache()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not initialize cache: %v\n", err)
+			useCache = false
+		}
 	}
-	defer os.RemoveAll(tempDir)
 
-	fmt.Println("Downloading audio from YouTube...")
-	audioPath, err := internal.DownloadAudio(url, tempDir)
-	if err != nil {
-		return fmt.Errorf("download failed: %w", err)
+	var audioPath string
+	var transcript string
+
+	// Check cache for transcript (most valuable to cache)
+	if useCache && !refreshCache && cache.HasTranscript(videoID) {
+		fmt.Printf("Using cached transcript for %s\n", videoID)
+		transcript, err = cache.GetTranscript(videoID)
+		if err != nil {
+			return fmt.Errorf("failed to read cached transcript: %w", err)
+		}
+	} else {
+		// Need to download and/or transcribe
+
+		// Check cache for audio
+		if useCache && !refreshCache && cache.HasAudio(videoID) {
+			fmt.Printf("Using cached audio for %s\n", videoID)
+			audioPath = cache.AudioPath(videoID)
+		} else {
+			// Download audio
+			tempDir, err := os.MkdirTemp("", "yt2anki-*")
+			if err != nil {
+				return fmt.Errorf("failed to create temp directory: %w", err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			audioPath, err = internal.DownloadAudio(url, tempDir)
+			if err != nil {
+				return fmt.Errorf("download failed: %w", err)
+			}
+
+			// Cache the audio
+			if useCache {
+				if err := cache.SaveAudio(videoID, audioPath); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: could not cache audio: %v\n", err)
+				} else {
+					audioPath = cache.AudioPath(videoID)
+				}
+			}
+		}
+
+		// Transcribe
+		tempDir, err := os.MkdirTemp("", "yt2anki-transcribe-*")
+		if err != nil {
+			return fmt.Errorf("failed to create temp directory: %w", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		transcript, err = internal.Transcribe(audioPath, tempDir)
+		if err != nil {
+			return fmt.Errorf("transcription failed: %w", err)
+		}
+
+		// Cache the transcript
+		if useCache {
+			if err := cache.SaveTranscript(videoID, transcript); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not cache transcript: %v\n", err)
+			}
+		}
 	}
-	fmt.Printf("Audio saved to: %s\n", audioPath)
 
-	fmt.Println("Transcribing audio...")
-	transcript, err := internal.Transcribe(audioPath, tempDir)
-	if err != nil {
-		return fmt.Errorf("transcription failed: %w", err)
-	}
-	fmt.Printf("Transcript length: %d characters\n", len(transcript))
-
-	fmt.Println("Extracting vocabulary with LLM...")
+	// Extract vocabulary
 	llmClient := internal.NewLLMClient(apiURL, apiKey, model)
 	vocabulary, err := llmClient.ExtractVocabulary(transcript, count, level)
 	if err != nil {
 		return fmt.Errorf("vocabulary extraction failed: %w", err)
 	}
-	fmt.Printf("Extracted %d words\n", len(vocabulary))
+
+	// Print total time before review
+	totalTime := time.Since(startTime)
+	fmt.Printf("\nExtracted %d words\n", len(vocabulary))
+	fmt.Printf("Total time: %s\n", internal.FormatDuration(totalTime))
 
 	// Interactive review
 	if !noReview {
@@ -107,7 +194,7 @@ func run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	fmt.Println("Generating Anki deck...")
+	fmt.Println("\nGenerating Anki deck...")
 	deckName := filepath.Base(output)
 	deckName = deckName[:len(deckName)-len(filepath.Ext(deckName))]
 	if err := internal.GenerateAPKG(vocabulary, output, deckName); err != nil {

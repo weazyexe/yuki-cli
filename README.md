@@ -74,6 +74,10 @@ Flags:
       --api-url string  OpenAI-compatible API URL (default: http://localhost:11434/v1)
       --api-key string  API ключ (или env: OPENAI_API_KEY)
       --model string    Модель LLM (default: gpt-4o-mini)
+      --no-review       Пропустить интерактивный выбор слов
+      --no-cache        Не использовать кэш
+      --refresh         Перекачать и перетранскрибировать (игнорировать кэш)
+      --clear-cache     Очистить кэш и выйти
 ```
 
 ### Примеры
@@ -88,7 +92,24 @@ yt2anki -n 30 -l B2 -o english_vocab.apkg "https://youtu.be/xxx"
 
 # С локальным Ollama
 yt2anki --api-url http://localhost:11434/v1 --model llama3 --api-key dummy "URL"
+
+# Перезапуск с тем же видео (использует кэш)
+yt2anki -n 10 -l A2 "https://youtu.be/xxx"
+
+# Очистка кэша
+yt2anki --clear-cache
 ```
+
+## Кэширование
+
+Утилита кэширует скачанное аудио и транскрипты в `~/.cache/yt2anki/`. Это позволяет:
+- Быстро перезапускать с другими параметрами (уровень, количество слов)
+- Экономить время на повторной транскрипции (самая долгая операция)
+
+Управление кэшем:
+- `--no-cache` — не использовать кэш для этого запуска
+- `--refresh` — перекачать и перетранскрибировать
+- `--clear-cache` — очистить весь кэш
 
 ## Структура карточек
 
