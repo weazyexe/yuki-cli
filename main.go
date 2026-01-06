@@ -11,12 +11,13 @@ import (
 )
 
 var (
-	count   int
-	output  string
-	level   string
-	apiURL  string
-	apiKey  string
-	model   string
+	count    int
+	output   string
+	level    string
+	apiURL   string
+	apiKey   string
+	model    string
+	noReview bool
 )
 
 func main() {
@@ -34,6 +35,7 @@ func main() {
 	rootCmd.Flags().StringVar(&apiURL, "api-url", "http://localhost:11434/v1", "OpenAI-compatible API URL")
 	rootCmd.Flags().StringVar(&apiKey, "api-key", "", "API key (or env: OPENAI_API_KEY)")
 	rootCmd.Flags().StringVar(&model, "model", "gpt-4o-mini", "LLM model name")
+	rootCmd.Flags().BoolVar(&noReview, "no-review", false, "Skip interactive review, add all words")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -95,6 +97,15 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("vocabulary extraction failed: %w", err)
 	}
 	fmt.Printf("Extracted %d words\n", len(vocabulary))
+
+	// Interactive review
+	if !noReview {
+		vocabulary = internal.ReviewVocabulary(vocabulary)
+		if len(vocabulary) == 0 {
+			fmt.Println("No words selected. Exiting.")
+			return nil
+		}
+	}
 
 	fmt.Println("Generating Anki deck...")
 	deckName := filepath.Base(output)
