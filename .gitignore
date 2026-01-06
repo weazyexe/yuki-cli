@@ -1,0 +1,19 @@
+# Binary
+yt2anki
+
+# Output files
+*.apkg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test/temp files
+*.mp3
+*.txt
