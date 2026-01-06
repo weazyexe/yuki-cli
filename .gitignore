@@ -17,3 +17,5 @@ Thumbs.db
 # Test/temp files
 *.mp3
 *.txt
+
+.claude
