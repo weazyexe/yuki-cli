@@ -31,16 +31,31 @@ func DownloadAudio(url, outputDir string) (string, error) {
 	return audioPath, nil
 }
 
-// CheckDependencies verifies that required external tools are available
-func CheckDependencies() error {
-	deps := []string{"yt-dlp", "mlx_whisper"}
-
-	for _, dep := range deps {
-		_, err := exec.LookPath(dep)
-		if err != nil {
-			return fmt.Errorf("%s not found in PATH. Please install it first", dep)
-		}
+// CheckDownloadDependencies verifies that yt-dlp is available
+func CheckDownloadDependencies() error {
+	_, err := exec.LookPath("yt-dlp")
+	if err != nil {
+		return fmt.Errorf("yt-dlp not found in PATH. Please install it first")
 	}
+	return nil
+}
 
+// CheckTranscribeDependencies verifies that mlx_whisper is available
+func CheckTranscribeDependencies() error {
+	_, err := exec.LookPath("mlx_whisper")
+	if err != nil {
+		return fmt.Errorf("mlx_whisper not found in PATH. Please install it first")
+	}
+	return nil
+}
+
+// CheckYouTubeDependencies verifies that all YouTube processing tools are available
+func CheckYouTubeDependencies() error {
+	if err := CheckDownloadDependencies(); err != nil {
+		return err
+	}
+	if err := CheckTranscribeDependencies(); err != nil {
+		return err
+	}
 	return nil
 }

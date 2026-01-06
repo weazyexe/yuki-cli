@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -26,9 +25,9 @@ var (
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "yt2anki [flags] <youtube-url>",
-		Short: "Convert YouTube videos to Anki flashcard decks",
-		Long:  "CLI utility that extracts vocabulary from YouTube videos and creates Anki decks",
+		Use:   "yt2anki [flags] <youtube-url|file>",
+		Short: "Convert YouTube videos or subtitle files to Anki flashcard decks",
+		Long:  "CLI utility that extracts vocabulary from YouTube videos or subtitle/text files and creates Anki decks",
 		Args:  cobra.MaximumNArgs(1),
 		RunE:  run,
 	}
@@ -63,25 +62,20 @@ func run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Require URL for normal operation
+	// Require input for normal operation
 	if len(args) == 0 {
-		return fmt.Errorf("YouTube URL required")
+		return fmt.Errorf("YouTube URL or file path required")
 	}
-	url := args[0]
+	input := args[0]
+
+	// Detect input type early to provide better error messages
+	inputType := internal.DetectInputType(input)
+	if inputType == internal.InputTypeUnknown {
+		return fmt.Errorf("input must be a valid YouTube URL or existing file: %s", input)
+	}
 
 	// Start timing
 	startTime := time.Now()
-
-	// Validate YouTube URL
-	if !isValidYouTubeURL(url) {
-		return fmt.Errorf("invalid YouTube URL: %s", url)
-	}
-
-	// Extract video ID for caching
-	videoID, err := internal.ExtractVideoID(url)
-	if err != nil {
-		return fmt.Errorf("failed to extract video ID: %w", err)
-	}
 
 	// Validate level
 	validLevels := map[string]bool{"A2": true, "B1": true, "B2": true}
@@ -97,80 +91,19 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("API key required: use --api-key flag or set OPENAI_API_KEY environment variable")
 	}
 
-	// Check external dependencies
-	if err := internal.CheckDependencies(); err != nil {
-		return err
-	}
-
-	// Initialize cache (unless disabled)
-	var cache *internal.Cache
-	useCache := !noCache
-	if useCache {
-		cache, err = internal.NewCache()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not initialize cache: %v\n", err)
-			useCache = false
-		}
-	}
-
-	var audioPath string
+	// Get transcript based on input type
 	var transcript string
+	var err error
 
-	// Check cache for transcript (most valuable to cache)
-	if useCache && !refreshCache && cache.HasTranscript(videoID) {
-		fmt.Printf("Using cached transcript for %s\n", videoID)
-		transcript, err = cache.GetTranscript(videoID)
-		if err != nil {
-			return fmt.Errorf("failed to read cached transcript: %w", err)
-		}
-	} else {
-		// Need to download and/or transcribe
+	switch inputType {
+	case internal.InputTypeYouTube:
+		transcript, err = processYouTube(input)
+	case internal.InputTypeFile:
+		transcript, err = processFile(input)
+	}
 
-		// Check cache for audio
-		if useCache && !refreshCache && cache.HasAudio(videoID) {
-			fmt.Printf("Using cached audio for %s\n", videoID)
-			audioPath = cache.AudioPath(videoID)
-		} else {
-			// Download audio
-			tempDir, err := os.MkdirTemp("", "yt2anki-*")
-			if err != nil {
-				return fmt.Errorf("failed to create temp directory: %w", err)
-			}
-			defer os.RemoveAll(tempDir)
-
-			audioPath, err = internal.DownloadAudio(url, tempDir)
-			if err != nil {
-				return fmt.Errorf("download failed: %w", err)
-			}
-
-			// Cache the audio
-			if useCache {
-				if err := cache.SaveAudio(videoID, audioPath); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: could not cache audio: %v\n", err)
-				} else {
-					audioPath = cache.AudioPath(videoID)
-				}
-			}
-		}
-
-		// Transcribe
-		tempDir, err := os.MkdirTemp("", "yt2anki-transcribe-*")
-		if err != nil {
-			return fmt.Errorf("failed to create temp directory: %w", err)
-		}
-		defer os.RemoveAll(tempDir)
-
-		transcript, err = internal.Transcribe(audioPath, tempDir)
-		if err != nil {
-			return fmt.Errorf("transcription failed: %w", err)
-		}
-
-		// Cache the transcript
-		if useCache {
-			if err := cache.SaveTranscript(videoID, transcript); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: could not cache transcript: %v\n", err)
-			}
-		}
+	if err != nil {
+		return err
 	}
 
 	// Extract vocabulary
@@ -205,18 +138,111 @@ func run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func isValidYouTubeURL(url string) bool {
-	patterns := []string{
-		`^https?://(www\.)?youtube\.com/watch\?v=[\w-]+`,
-		`^https?://youtu\.be/[\w-]+`,
-		`^https?://(www\.)?youtube\.com/shorts/[\w-]+`,
+// processYouTube handles YouTube URL input with download and transcription
+func processYouTube(url string) (string, error) {
+	// Check external dependencies
+	if err := internal.CheckYouTubeDependencies(); err != nil {
+		return "", err
 	}
 
-	for _, pattern := range patterns {
-		matched, _ := regexp.MatchString(pattern, url)
-		if matched {
-			return true
+	// Extract video ID for caching
+	videoID, err := internal.ExtractVideoID(url)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract video ID: %w", err)
+	}
+
+	// Initialize cache (unless disabled)
+	var cache *internal.Cache
+	useCache := !noCache
+	if useCache {
+		cache, err = internal.NewCache()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not initialize cache: %v\n", err)
+			useCache = false
 		}
 	}
-	return false
+
+	var audioPath string
+	var transcript string
+
+	// Check cache for transcript (most valuable to cache)
+	if useCache && !refreshCache && cache.HasTranscript(videoID) {
+		fmt.Printf("Using cached transcript for %s\n", videoID)
+		transcript, err = cache.GetTranscript(videoID)
+		if err != nil {
+			return "", fmt.Errorf("failed to read cached transcript: %w", err)
+		}
+		return transcript, nil
+	}
+
+	// Need to download and/or transcribe
+
+	// Check cache for audio
+	if useCache && !refreshCache && cache.HasAudio(videoID) {
+		fmt.Printf("Using cached audio for %s\n", videoID)
+		audioPath = cache.AudioPath(videoID)
+	} else {
+		// Download audio
+		tempDir, err := os.MkdirTemp("", "yt2anki-*")
+		if err != nil {
+			return "", fmt.Errorf("failed to create temp directory: %w", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		audioPath, err = internal.DownloadAudio(url, tempDir)
+		if err != nil {
+			return "", fmt.Errorf("download failed: %w", err)
+		}
+
+		// Cache the audio
+		if useCache {
+			if err := cache.SaveAudio(videoID, audioPath); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not cache audio: %v\n", err)
+			} else {
+				audioPath = cache.AudioPath(videoID)
+			}
+		}
+	}
+
+	// Transcribe
+	tempDir, err := os.MkdirTemp("", "yt2anki-transcribe-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	transcript, err = internal.Transcribe(audioPath, tempDir)
+	if err != nil {
+		return "", fmt.Errorf("transcription failed: %w", err)
+	}
+
+	// Cache the transcript
+	if useCache {
+		if err := cache.SaveTranscript(videoID, transcript); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not cache transcript: %v\n", err)
+		}
+	}
+
+	return transcript, nil
+}
+
+// processFile handles file input (SRT, VTT, TXT)
+func processFile(filePath string) (string, error) {
+	// Validate file exists and is not a directory
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return "", fmt.Errorf("cannot access file: %w", err)
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("path is a directory, not a file: %s", filePath)
+	}
+
+	fmt.Printf("Parsing file: %s\n", filePath)
+
+	transcript, err := internal.ParseFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse file: %w", err)
+	}
+
+	return transcript, nil
 }
